@@ -5,9 +5,6 @@ set -euo pipefail
 # General arguments
 ROOT=$PWD
 
-# GenRL Swarm version to use
-GENRL_SWARM_TAG="v0.1.1"
-
 export IDENTITY_PATH
 export GENSYN_RESET_CONFIG
 export CONNECT_TO_TESTNET=true
@@ -127,6 +124,7 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
             sudo apt update && sudo apt install -y yarn
         else
             echo "Yarn not found. Installing Yarn globally with npm (no profile edits)…"
+            # This lands in $NVM_DIR/versions/node/<ver>/bin which is already on PATH
             npm install -g --silent yarn
         fi
     fi
@@ -139,6 +137,7 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
         # Linux version
         sed -i "3s/.*/SMART_CONTRACT_ADDRESS=$SWARM_CONTRACT/" "$ENV_FILE"
     fi
+
 
     # Docker image already builds it, no need to again.
     if [ -z "$DOCKER" ]; then
@@ -194,25 +193,14 @@ pip install --upgrade pip
 # Clone GenRL repository to user's working directory
 echo_green ">> Initializing and updating GenRL..."
 if [ ! -d "$ROOT/genrl-swarm" ]; then
-    git clone --depth=1 --branch "$GENRL_SWARM_TAG" https://github.com/gensyn-ai/genrl-swarm.git "$ROOT/genrl-swarm"
-else
-    # Check if we are on the correct tag
-    cd "$ROOT/genrl-swarm"
-    CURRENT_TAG=$(git describe --tags --exact-match 2>/dev/null || echo "unknown")
-    if [ "$CURRENT_TAG" != "$GENRL_SWARM_TAG" ]; then
-        echo_green ">> Updating genrl-swarm to tag $GENRL_SWARM_TAG..."
-        git fetch --tags
-        git checkout "$GENRL_SWARM_TAG"
-        git pull origin "$GENRL_SWARM_TAG"
-    fi
-    cd "$ROOT"
+    git clone --depth=1 --branch v0.1.0 https://github.com/gensyn-ai/genrl-swarm.git "$ROOT/genrl-swarm"
 fi
 
 echo_green ">> Installing GenRL."
 if [ -d "$ROOT/genrl-swarm" ]; then
     cd "$ROOT/genrl-swarm"
     pip install -e .[examples]
-    cd "$ROOT"
+    cd "$ROOT" 
 else
     echo_red "Error: genrl-swarm submodule not found at $ROOT/genrl-swarm"
     exit 1
@@ -220,7 +208,7 @@ fi
 
 if [ ! -d "$ROOT/configs" ]; then
     mkdir "$ROOT/configs"
-fi
+fi  
 if [ -f "$ROOT/configs/rg-swarm.yaml" ]; then
     # Use cmp -s for a silent comparison. If different, backup and copy.
     if ! cmp -s "$ROOT/genrl-swarm/recipes/rgym/rg-swarm.yaml" "$ROOT/configs/rg-swarm.yaml"; then
@@ -244,41 +232,38 @@ fi
 
 echo_green ">> Done!"
 
-# Set Hugging Face and model choices directly
-export HUGGINGFACE_ACCESS_TOKEN="None"
-export MODEL_NAME="Gensyn/Qwen2.5-0.5B-Instruct"
-echo_green ">> Set HUGGINGFACE_ACCESS_TOKEN=None (not pushing to Hugging Face Hub)"
-echo_green ">> Set MODEL_NAME=$MODEL_NAME"
+HF_TOKEN=${HF_TOKEN:-""}
+if [ -n "${HF_TOKEN}" ]; then # Check if HF_TOKEN is already set and use if so. Else give user a prompt to choose.
+    HUGGINGFACE_ACCESS_TOKEN=${HF_TOKEN}
+else
+    echo -en $GREEN_TEXT
+    read -p ">> Would you like to push models you train in the RL swarm to the Hugging Face Hub? [y/N] " yn
+    echo -en $RESET_TEXT
+    yn=${yn:-N} # Default to "N" if the user presses Enter
+    case $yn in
+        [Yy]*) read -p "Enter your Hugging Face access token: " HUGGINGFACE_ACCESS_TOKEN ;;
+        [Nn]*) HUGGINGFACE_ACCESS_TOKEN="None" ;;
+        *) echo ">>> No answer was given, so NO models will be pushed to Hugging Face Hub" && HUGGINGFACE_ACCESS_TOKEN="None" ;;
+    esac
+fi
 
-# Function to run the Python command with retries
-run_with_retry() {
-    local max_retries=100
-    local retry_interval=5
-    local attempt=1
+echo -en $GREEN_TEXT
+read -p ">> Enter the name of the model you want to use in huggingface repo/name format, or press [Enter] to use the default model. " MODEL_NAME
+echo -en $RESET_TEXT
 
-    while [ $attempt -le $max_retries ]; do
-        echo_green ">> Attempt $attempt/$max_retries to run swarm_launcher.py"
-        python "$ROOT/genrl-swarm/src/genrl_swarm/runner/swarm_launcher.py" \
-            --config-path "$ROOT/configs" \
-            --config-name "rg-swarm.yaml"
-        if [ $? -eq 0 ]; then
-            echo_green ">> Python command executed successfully"
-            break
-        else
-            echo_red ">> Attempt $attempt/$max_retries failed"
-            if [ $attempt -lt $max_retries ]; then
-                echo ">> Retrying in $retry_interval seconds..."
-                sleep $retry_interval
-            else
-                echo_red ">> Failed after $max_retries attempts"
-                exit 1
-            fi
-        fi
-        ((attempt++))
-    done
-}
+# Only export MODEL_NAME if user provided a non-empty value
+if [ -n "$MODEL_NAME" ]; then
+    export MODEL_NAME
+    echo_green ">> Using model: $MODEL_NAME"
+else
+    echo_green ">> Using default model from config"
+fi
 
-# Run the Python command with retries
-run_with_retry
+echo_green ">> Good luck in the swarm!"
+echo_blue ">> And remember to star the repo on GitHub! --> https://github.com/gensyn-ai/rl-swarm"
+
+python "$ROOT/genrl-swarm/src/genrl_swarm/runner/swarm_launcher.py" \
+    --config-path "$ROOT/configs" \
+    --config-name "rg-swarm.yaml" 
 
 wait  # Keep script running until Ctrl+C
