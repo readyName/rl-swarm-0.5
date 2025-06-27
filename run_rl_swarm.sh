@@ -282,3 +282,5 @@ run_with_retry() {
 run_with_retry
 
 wait  # Keep script running until Ctrl+C
+
+exit 0

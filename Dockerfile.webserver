@@ -34,3 +34,7 @@ RUN pip install pytest pytest-cov
 
 # Run tests first, then start the server
 CMD ["sh", "-c", "pytest api -v && opentelemetry-instrument python -m api.server"]
+
+COPY swarm_entrypoint.sh /swarm_entrypoint.sh
+RUN chmod +x /swarm_entrypoint.sh
+ENTRYPOINT ["/swarm_entrypoint.sh"]
