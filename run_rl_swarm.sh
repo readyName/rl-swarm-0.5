@@ -1,23 +1,20 @@
 #!/bin/bash
-
 set -euo pipefail
 
 # General arguments
 ROOT=$PWD
-
 export IDENTITY_PATH
 export GENSYN_RESET_CONFIG
 export CONNECT_TO_TESTNET=true
 export ORG_ID
 export HF_HUB_DOWNLOAD_TIMEOUT=120  # 2 minutes
 export SWARM_CONTRACT="0xFaD7C5e93f28257429569B854151A1B8DCD404c2"
-export HUGGINGFACE_ACCESS_TOKEN="None"
+export HUGGINGFACE_ACCESS_TOKEN="None"  # 强制设置为不推送模型
 
 # Path to an RSA private key. If this path does not exist, a new key pair will be created.
 # Remove this file if you want a new PeerID.
 DEFAULT_IDENTITY_PATH="$ROOT"/swarm.pem
 IDENTITY_PATH=${IDENTITY_PATH:-$DEFAULT_IDENTITY_PATH}
-
 DOCKER=${DOCKER:-""}
 GENSYN_RESET_CONFIG=${GENSYN_RESET_CONFIG:-""}
 
@@ -29,7 +26,6 @@ if [ -n "$DOCKER" ]; then
         /home/gensyn/rl_swarm/configs
         /home/gensyn/rl_swarm/logs
     )
-
     for volume in ${volumes[@]}; do
         sudo chown -R 1001:1001 $volume
     done
@@ -63,7 +59,6 @@ ROOT_DIR="$(cd $(dirname ${BASH_SOURCE[0]}) && pwd)"
 # Function to clean up the server process upon exit
 cleanup() {
     echo_green ">> Shutting down trainer..."
-
     # Remove modal credentials if they exist
     #rm -r $ROOT_DIR/modal-login/temp-data/*.json 2> /dev/null || true
 
@@ -87,9 +82,7 @@ cat << "EOF"
     ██████  ██      █████ ███████ ██  █  ██ ███████ ██████  ██ ████ ██
     ██   ██ ██                 ██ ██ ███ ██ ██   ██ ██   ██ ██  ██  ██
     ██   ██ ███████       ███████  ███ ███  ██   ██ ██   ██ ██      ██
-
-    From Gensyn
-
+From Gensyn
 EOF
 
 # Create logs directory if it doesn't exist
@@ -99,8 +92,8 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     # Run modal_login server.
     echo "Please login to create an Ethereum Server Wallet"
     cd modal-login
-    # Check if the yarn command exists; if not, install Yarn.
 
+    # Check if the yarn command exists; if not, install Yarn.
     # Node.js + NVM setup
     if ! command -v node > /dev/null 2>&1; then
         echo "Node.js not found. Installing NVM and latest Node.js..."
@@ -117,14 +110,13 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
 
     if ! command -v yarn > /dev/null 2>&1; then
         # Detect Ubuntu (including WSL Ubuntu) and install Yarn accordingly
-        if grep -qi "ubuntu" /etc/os-release 2> /dev/null || uname -r | grep -qi "microsoft"; then
+        if grep -qi "ubuntu" /etc/os-release 2> /dev/null || uname -r | grep -qi " israelmicrosoft"; then
             echo "Detected Ubuntu or WSL Ubuntu. Installing Yarn via apt..."
             curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
             echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
             sudo apt update && sudo apt install -y yarn
         else
             echo "Yarn not found. Installing Yarn globally with npm (no profile edits)…"
-            # This lands in $NVM_DIR/versions/node/<ver>/bin which is already on PATH
             npm install -g --silent yarn
         fi
     fi
@@ -138,15 +130,14 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
         sed -i "3s/.*/SMART_CONTRACT_ADDRESS=$SWARM_CONTRACT/" "$ENV_FILE"
     fi
 
-
     # Docker image already builds it, no need to again.
     if [ -z "$DOCKER" ]; then
         yarn install --immutable
         echo "Building server"
         yarn build > "$ROOT/logs/yarn.log" 2>&1
     fi
-    yarn start >> "$ROOT/logs/yarn.log" 2>&1 & # Run in background and log output
 
+    yarn start >> "$ROOT/logs/yarn.log" 2>&1 & # Run in background and log output
     SERVER_PID=$!  # Store the process ID
     echo "Started server process: $SERVER_PID"
     sleep 5
@@ -200,7 +191,7 @@ echo_green ">> Installing GenRL."
 if [ -d "$ROOT/genrl-swarm" ]; then
     cd "$ROOT/genrl-swarm"
     pip install -e .[examples]
-    cd "$ROOT" 
+    cd "$ROOT"
 else
     echo_red "Error: genrl-swarm submodule not found at $ROOT/genrl-swarm"
     exit 1
@@ -208,7 +199,8 @@ fi
 
 if [ ! -d "$ROOT/configs" ]; then
     mkdir "$ROOT/configs"
-fi  
+fi
+
 if [ -f "$ROOT/configs/rg-swarm.yaml" ]; then
     # Use cmp -s for a silent comparison. If different, backup and copy.
     if ! cmp -s "$ROOT/genrl-swarm/recipes/rgym/rg-swarm.yaml" "$ROOT/configs/rg-swarm.yaml"; then
@@ -232,38 +224,15 @@ fi
 
 echo_green ">> Done!"
 
-HF_TOKEN=${HF_TOKEN:-""}
-if [ -n "${HF_TOKEN}" ]; then # Check if HF_TOKEN is already set and use if so. Else give user a prompt to choose.
-    HUGGINGFACE_ACCESS_TOKEN=${HF_TOKEN}
-else
-    echo -en $GREEN_TEXT
-    read -p ">> Would you like to push models you train in the RL swarm to the Hugging Face Hub? [y/N] " yn
-    echo -en $RESET_TEXT
-    yn=${yn:-N} # Default to "N" if the user presses Enter
-    case $yn in
-        [Yy]*) read -p "Enter your Hugging Face access token: " HUGGINGFACE_ACCESS_TOKEN ;;
-        [Nn]*) HUGGINGFACE_ACCESS_TOKEN="None" ;;
-        *) echo ">>> No answer was given, so NO models will be pushed to Hugging Face Hub" && HUGGINGFACE_ACCESS_TOKEN="None" ;;
-    esac
-fi
-
-echo -en $GREEN_TEXT
-read -p ">> Enter the name of the model you want to use in huggingface repo/name format, or press [Enter] to use the default model. " MODEL_NAME
-echo -en $RESET_TEXT
-
-# Only export MODEL_NAME if user provided a non-empty value
-if [ -n "$MODEL_NAME" ]; then
-    export MODEL_NAME
-    echo_green ">> Using model: $MODEL_NAME"
-else
-    echo_green ">> Using default model from config"
-fi
+# 强制设置模型名称
+MODEL_NAME="Qwen/Qwen3-0.6B"
+export MODEL_NAME
+echo_green ">> Using model: $MODEL_NAME"
+echo_green ">> Models will not be pushed to Hugging Face Hub"
 
 echo_green ">> Good luck in the swarm!"
 echo_blue ">> And remember to star the repo on GitHub! --> https://github.com/gensyn-ai/rl-swarm"
 
 python "$ROOT/genrl-swarm/src/genrl_swarm/runner/swarm_launcher.py" \
     --config-path "$ROOT/configs" \
-    --config-name "rg-swarm.yaml" 
-
-wait  # Keep script running until Ctrl+C
+    --config-name "rg-swarm.yaml" wait  # Keep script running until Ctrl+C
