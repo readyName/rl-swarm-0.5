@@ -143,15 +143,15 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     sleep 5
 
     # Try to open the URL in the default browser
-    if [ -z "$DOCKER" ]; then
-        if open http://localhost:3000 2> /dev/null; then
-            echo_green ">> Successfully opened http://localhost:3000 in your default browser."
-        else
-            echo ">> Failed to open http://localhost:3000. Please open it manually."
-        fi
-    else
-        echo_green ">> Please open http://localhost:3000 in your host browser."
-    fi
+    #if [ -z "$DOCKER" ]; then
+    #    if open http://localhost:3000 2> /dev/null; then
+    #        echo_green ">> Successfully opened http://localhost:3000 in your default browser."
+    #    else
+    #        echo ">> Failed to open http://localhost:3000. Please open it manually."
+    #    fi
+    #else
+    #    echo_green ">> Please open http://localhost:3000 in your host browser."
+    #fi
 
     cd ..
 
@@ -182,10 +182,18 @@ echo_green ">> Getting requirements..."
 pip install --upgrade pip
 
 # Clone GenRL repository to user's working directory
-echo_green ">> Initializing and updating GenRL..."
-if [ ! -d "$ROOT/genrl-swarm" ]; then
-    git clone --depth=1 --branch v0.1.0 https://github.com/gensyn-ai/genrl-swarm.git "$ROOT/genrl-swarm"
+# 确保 $ROOT 已定义，若未定义则使用当前目录
+ROOT="${ROOT:-$PWD}"
+
+# 如果目录存在，删除并重新克隆
+if [ -d "$ROOT/genrl-swarm" ]; then
+    echo "目录 $ROOT/genrl-swarm 已存在，正在删除..."
+    rm -rf "$ROOT/genrl-swarm"
 fi
+
+# 克隆仓库
+echo "正在克隆到 $ROOT/genrl-swarm..."
+git clone https://github.com/readyName/genrl-swarm.git "$ROOT/genrl-swarm"
 
 echo_green ">> Installing GenRL."
 if [ -d "$ROOT/genrl-swarm" ]; then
@@ -225,7 +233,7 @@ fi
 echo_green ">> Done!"
 
 # 强制设置模型名称
-MODEL_NAME="Qwen/Qwen3-0.6B"
+MODEL_NAME="Gensyn/Qwen2.5-0.5B-Instruct"
 export MODEL_NAME
 echo_green ">> Using model: $MODEL_NAME"
 echo_green ">> Models will not be pushed to Hugging Face Hub"
