@@ -11,6 +11,9 @@ export HF_HUB_DOWNLOAD_TIMEOUT=120  # 2 minutes
 export SWARM_CONTRACT="0xFaD7C5e93f28257429569B854151A1B8DCD404c2"
 export HUGGINGFACE_ACCESS_TOKEN="None"  # 强制设置为不推送模型
 
+# GenRL Swarm version to use
+GENRL_SWARM_TAG="v0.1.1"
+
 # Path to an RSA private key. If this path does not exist, a new key pair will be created.
 # Remove this file if you want a new PeerID.
 DEFAULT_IDENTITY_PATH="$ROOT"/swarm.pem
@@ -184,7 +187,18 @@ pip install --upgrade pip
 # Clone GenRL repository to user's working directory
 echo_green ">> Initializing and updating GenRL..."
 if [ ! -d "$ROOT/genrl-swarm" ]; then
-    git clone --depth=1 --branch v0.1.0 https://github.com/gensyn-ai/genrl-swarm.git "$ROOT/genrl-swarm"
+    git clone --depth=1 --branch "$GENRL_SWARM_TAG" https://github.com/gensyn-ai/genrl-swarm.git "$ROOT/genrl-swarm"
+else
+    # Check if we are on the correct tag
+    cd "$ROOT/genrl-swarm"
+    CURRENT_TAG=$(git describe --tags --exact-match 2>/dev/null || echo "unknown")
+    if [ "$CURRENT_TAG" != "$GENRL_SWARM_TAG" ]; then
+        echo_green ">> Updating genrl-swarm to tag $GENRL_SWARM_TAG..."
+        git fetch --tags
+        git checkout "$GENRL_SWARM_TAG"
+        git pull origin "$GENRL_SWARM_TAG"
+    fi
+    cd "$ROOT"
 fi
 
 echo_green ">> Installing GenRL."
