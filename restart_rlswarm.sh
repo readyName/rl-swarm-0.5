@@ -20,13 +20,4 @@ echo "🧼 停止并清理已有容器（如果存在）..."
 docker-compose down
 
 echo "🔄 重新构建并启动 swarm-cpu 容器..."
-docker-compose up --build -d swarm-cpu
-
-if [ $? -eq 0 ]; then
-    echo "🚀 容器已强制重启成功，开始输出日志..."
-    echo "📜 按 Ctrl+C 可停止查看日志，容器会在后台继续运行"
-    docker-compose logs -f swarm-cpu
-else
-    echo "❌ 容器重启失败，请手动检查日志。"
-    exit 1
-fi
+docker-compose up --build swarm-cpu
