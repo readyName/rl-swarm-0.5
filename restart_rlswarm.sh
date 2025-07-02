@@ -20,4 +20,4 @@ echo "🧼 停止并清理已有容器（如果存在）..."
 docker-compose down
 
 echo "🔄 重新构建并启动 swarm-cpu 容器..."
-docker-compose up --build swarm-cpu
+docker-compose up swarm-cpu
