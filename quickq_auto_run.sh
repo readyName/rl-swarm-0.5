@@ -5,13 +5,14 @@ APP_PATH="/Applications/QuickQ For Mac.app"
 
 # 坐标参数说明：
 # 连接操作坐标
-DROP_DOWN_BUTTON_X=1720  # 下拉按钮X
+LEFT_X=1520
+DROP_DOWN_BUTTON_X=200  # 下拉按钮X  1720在右边 200在左边
 DROP_DOWN_BUTTON_Y=430   # 下拉按钮Y
-CONNECT_BUTTON_X=1720    # 连接按钮X
+CONNECT_BUTTON_X=200    # 连接按钮X。1720在右边 200在左边
 CONNECT_BUTTON_Y=260     # 连接按钮Y
 
 # 初始化操作坐标
-SETTINGS_BUTTON_X=1869   # 设置按钮X
+SETTINGS_BUTTON_X=349   # 设置按钮X   1869在右边。349在左边
 SETTINGS_BUTTON_Y=165    # 设置按钮Y
 
 # 检查 cliclick 依赖
@@ -78,7 +79,7 @@ adjust_window() {
         tell process "QuickQ For Mac"
             repeat 3 times  # 增加重试机制
                 if exists window 1 then
-                    set position of window 1 to {1520, 0}
+                    set position of window 1 to {0, 0}
                     set size of window 1 to {400, 300}
                     exit repeat
                 else
@@ -137,7 +138,14 @@ while :; do
                 echo "[$(date +"%T")] 状态变化：已建立VPN连接"
             fi
             reconnect_count=0
-            sleep 30
+            # 30分钟检测一次，但每分钟打印一次剩余时间
+            total_wait=1800  # 30分钟 = 1800秒
+            while [ $total_wait -gt 0 ]; do
+                remaining_min=$((total_wait / 60))
+                echo "[$(date +"%T")] 下次检测将在 ${remaining_min} 分钟后进行..."
+                sleep 60  # 等待1分钟
+                total_wait=$((total_wait - 60))
+            done
             continue
         else
             echo "[$(date +"%T")] 检测到网络不通"
